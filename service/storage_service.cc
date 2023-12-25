@@ -65,6 +65,7 @@
 #include "sstables/sstables.hh"
 #include "db/config.hh"
 #include "db/schema_tables.hh"
+#include "db/view/view_builder.hh"
 #include "replica/database.hh"
 #include "replica/tablets.hh"
 #include <seastar/core/metrics.hh>
@@ -3390,7 +3391,7 @@ future<> storage_service::join_token_ring(sharded<db::system_distributed_keyspac
             // bootstrap_tokens was previously set using tokens gossiped by the replaced node
         }
         co_await sys_dist_ks.invoke_on_all(&db::system_distributed_keyspace::start);
-        co_await mark_existing_views_as_built();
+        co_await _view_builder.local().mark_existing_views_as_built();
         co_await _sys_ks.local().update_tokens(bootstrap_tokens);
         co_await bootstrap(bootstrap_tokens, cdc_gen_id, ri);
     } else {
@@ -3479,15 +3480,6 @@ future<> storage_service::join_token_ring(sharded<db::system_distributed_keyspac
     assert(_group0);
     co_await _group0->finish_setup_after_join(*this, _qp, _migration_manager.local(), _raft_topology_change_enabled);
     co_await _cdc_gens.local().after_join(std::move(cdc_gen_id));
-}
-
-future<> storage_service::mark_existing_views_as_built() {
-    assert(this_shard_id() == 0);
-    auto views = _db.local().get_views();
-    co_await coroutine::parallel_for_each(views, [this] (view_ptr& view) -> future<> {
-        co_await _sys_ks.local().mark_view_as_built(view->ks_name(), view->cf_name());
-        co_await _sys_dist_ks.local().finish_view_build(view->ks_name(), view->cf_name());
-    });
 }
 
 std::unordered_set<gms::inet_address> storage_service::parse_node_list(sstring comma_separated_list, const token_metadata& tm) {
@@ -6467,7 +6459,7 @@ future<raft_topology_cmd_result> storage_service::raft_topology_cmd_handler(raft
                 case node_state::replacing: {
                     set_mode(mode::BOOTSTRAP);
                     // See issue #4001
-                    co_await mark_existing_views_as_built();
+                    co_await _view_builder.local().mark_existing_views_as_built();
                     co_await _db.invoke_on_all([] (replica::database& db) {
                         for (auto& cf : db.get_non_system_column_families()) {
                             cf->notify_bootstrap_or_replace_start();
