@@ -771,6 +771,7 @@ private:
                 std::ref(_snitch),
                 std::ref(_tablet_allocator),
                 std::ref(_cdc_generation_service),
+                std::ref(_view_builder),
                 std::ref(_qp)).get();
             auto stop_storage_service = defer([this] { _ss.stop().get(); });
 

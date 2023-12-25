@@ -132,6 +132,7 @@ storage_service::storage_service(abort_source& abort_source,
     sharded<locator::snitch_ptr>& snitch,
     sharded<service::tablet_allocator>& tablet_allocator,
     sharded<cdc::generation_service>& cdc_gens,
+    sharded<db::view::view_builder>& view_builder,
     cql3::query_processor& qp)
         : _abort_source(abort_source)
         , _feature_service(feature_service)
@@ -158,6 +159,7 @@ storage_service::storage_service(abort_source& abort_source,
         })
         , _tablet_allocator(tablet_allocator)
         , _cdc_gens(cdc_gens)
+        , _view_builder(view_builder)
 {
     register_metrics();
 
